@@ -1,0 +1,32 @@
+{
+    "seed": 2026,
+
+    "simulation_counts":
+    [
+        1000,
+        5000
+    ],
+
+    "scenarios":
+    [
+        {
+            "name": "baseline",
+
+            "lead_time_multiplier": 1.0,
+
+            "unit_price_multiplier": 1.0,
+
+            "quantity_multiplier": 1.0
+        },
+
+        {
+            "name": "high_supplier_risk",
+
+            "lead_time_multiplier": 1.5,
+
+            "unit_price_multiplier": 1.0,
+
+            "quantity_multiplier": 1.0
+        }
+    ]
+}

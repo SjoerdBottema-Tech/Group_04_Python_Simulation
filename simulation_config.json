@@ -1,32 +1,30 @@
 {
-    "seed": 2026,
-
-    "simulation_counts":
-    [
-        1000,
-        5000
-    ],
-
-    "scenarios":
-    [
-        {
-            "name": "baseline",
-
-            "lead_time_multiplier": 1.0,
-
-            "unit_price_multiplier": 1.0,
-
-            "quantity_multiplier": 1.0
-        },
-
-        {
-            "name": "high_supplier_risk",
-
-            "lead_time_multiplier": 1.5,
-
-            "unit_price_multiplier": 1.0,
-
-            "quantity_multiplier": 1.0
-        }
-    ]
+  "description": "Edit these settings and scenarios, then run python run_simulation.py to regenerate all results.",
+  "seed": 2026,
+  "simulation_counts": [
+    1000,
+    5000
+  ],
+  "monthly_episode_rate": 3.33,
+  "months_per_year": 12,
+  "duration_mean_days": 14,
+  "duration_threshold_days": 14,
+  "key_suppliers": [
+    "SUP-018",
+    "SUP-034",
+    "SUP-060",
+    "SUP-057"
+  ],
+  "scenarios": [
+    {
+      "name": "scenario_1_historical_onsets",
+      "description": "Supplier episode onsets follow each supplier's historical share (n_i / total historical onsets).",
+      "historical_onset_weight": 1.0
+    },
+    {
+      "name": "scenario_2_blended_onsets",
+      "description": "Supplier episode onsets combine 50% historical shares and 50% equal probability across suppliers.",
+      "historical_onset_weight": 0.5
+    }
+  ]
 }

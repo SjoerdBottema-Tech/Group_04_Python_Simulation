@@ -9,12 +9,12 @@ python run_simulation.py
 ```
 
 The script requires Python 3.10 or later, NumPy, pandas, and openpyxl. It reads
-`simulation_config.json` and `inputs/group04_p2_data_analysis.xlsx` (the
+`inputs/simulation_config.json` and `inputs/group04_p2_data_analysis.xlsx` (the
 `Sheet1` supplier onset data).
 
 ## User-adjustable settings
 
-`simulation_config.json` is the simulation interface. Edit it with any text
+`inputs/simulation_config.json` is the simulation interface. Edit it with any text
 editor, save valid JSON, then rerun the command above. The file documents each
 scenario and can be used to adjust:
 

@@ -6,7 +6,7 @@ import pandas as pd
 
 
 PROJECT_DIR = Path(__file__).parent
-CONFIG_FILE = PROJECT_DIR / "simulation_config.json"
+CONFIG_FILE = PROJECT_DIR / "inputs" / "simulation_config.json"
 DATA_FILE = PROJECT_DIR / "inputs" / "group04_p2_data_analysis.xlsx"
 OUTPUT_FILE = PROJECT_DIR / "results" / "simulation_output.csv"
 SUMMARY_FILE = PROJECT_DIR / "results" / "simulation_results.csv"

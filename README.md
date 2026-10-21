@@ -2,21 +2,37 @@
 
 ## Run
 
-From the project directory, run:
+The script requires:
+1. Python 3.10 or later
+2. NumPy
+3. pandas
+4. openpyxl
 
-```powershell
-python run_simulation.py
-```
+It reads:
+1. `inputs/simulation_config.json`
+2. `inputs/group04_p2_data_analysis.xlsx` (the `Sheet1` supplier onset data).
 
-The script requires Python 3.10 or later, NumPy, pandas, and openpyxl. It reads
-`inputs/simulation_config.json` and `inputs/group04_p2_data_analysis.xlsx` (the
-`Sheet1` supplier onset data).
+How to Run:
+
+1. Open PowerShell and navigate to the extracted project directory:
+  cd path\to\group04_p3_simulation
+
+2. Create and activate a virtual environment:
+  python -m venv .venv
+  .\.venv\Scripts\Activate.ps1
+
+3. Install the required packages:
+  python -m pip install numpy pandas openpyxl
+
+4. Run the simulation:
+  python run_simulation.py
+
 
 ## User-adjustable settings
 
-`inputs/simulation_config.json` is the simulation interface. Edit it with any text
-editor, save valid JSON, then rerun the command above. The file documents each
-scenario and can be used to adjust:
+`inputs/simulation_config.json` is the simulation interface. 
+Edit it with any text editor, save valid JSON, then rerun the command above.
+The file documents each scenario and can be used to adjust:
 
 | Setting | What it controls |
 | --- | --- |

@@ -7,11 +7,13 @@ import pandas as pd
 
 PROJECT_DIR = Path(__file__).parent
 CONFIG_FILE = PROJECT_DIR / "inputs" / "simulation_config.json"
+DASHBOARD_FILE = PROJECT_DIR / "group04_dashboard.xlsx"
 DATA_FILE = PROJECT_DIR / "inputs" / "group04_p2_data_analysis.xlsx"
 OUTPUT_FILE = PROJECT_DIR / "results" / "simulation_output.csv"
 SUMMARY_FILE = PROJECT_DIR / "results" / "simulation_results.csv"
 ANALYSIS_FILE = PROJECT_DIR / "group04_p3_analysis.xlsx"
 
+CONFIG_SHEET = "Simulation Config"
 SUPPLIER_SHEET = "Sheet1"
 SUPPLIER_ID_COLUMN = "Supplier"
 ONSET_COUNT_COLUMN = "Started Episodes\n(Onsets)"
@@ -53,6 +55,172 @@ def load_supplier_onset_probabilities(
         supplier_df[ONSET_COUNT_COLUMN].to_numpy(dtype=float) / total_onsets
     )
     return supplier_ids, historical_probabilities
+
+
+def _coerce_dashboard_integer(value: object) -> object:
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    return value
+
+
+def _parse_dashboard_value(setting: str, value: object) -> object:
+    if pd.isna(value):
+        return None
+
+    if not isinstance(value, str):
+        if setting == "simulation_counts":
+            return [_coerce_dashboard_integer(value)]
+        if setting == "key_suppliers":
+            return [value]
+        if setting in {
+            "seed",
+            "months_per_year",
+            "duration_threshold_days",
+        }:
+            return _coerce_dashboard_integer(value)
+        return value
+
+    value = value.strip()
+    if not value:
+        return None
+    if setting in {"simulation_counts", "key_suppliers"}:
+        try:
+            parsed_value = json.loads(value)
+        except json.JSONDecodeError:
+            items = [
+                item.strip()
+                for item in value.split(",")
+                if item.strip()
+            ]
+            if setting == "simulation_counts":
+                parsed_value = []
+                for item in items:
+                    try:
+                        parsed_value.append(json.loads(item))
+                    except json.JSONDecodeError:
+                        parsed_value.append(item)
+            else:
+                parsed_value = items
+        if not isinstance(parsed_value, list):
+            parsed_value = [parsed_value]
+        if setting == "simulation_counts":
+            parsed_value = [
+                _coerce_dashboard_integer(item) for item in parsed_value
+            ]
+        return parsed_value
+    if setting == "scenarios":
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError as error:
+            raise ValueError(
+                "Dashboard 'scenarios' must be a JSON array."
+            ) from error
+
+    try:
+        parsed_value = json.loads(value)
+    except json.JSONDecodeError:
+        parsed_value = value
+
+    integer_settings = {
+        "seed",
+        "simulation_counts",
+        "months_per_year",
+        "duration_threshold_days",
+    }
+    if setting in integer_settings:
+        if isinstance(parsed_value, list):
+            return [_coerce_dashboard_integer(item) for item in parsed_value]
+        return _coerce_dashboard_integer(parsed_value)
+    return parsed_value
+
+
+def load_dashboard_overrides(config: dict) -> dict:
+    dashboard_df = pd.read_excel(
+        DASHBOARD_FILE,
+        sheet_name=CONFIG_SHEET,
+        header=None,
+        usecols="A:B",
+    )
+    if dashboard_df.empty:
+        print(
+            f"No settings found on the '{CONFIG_SHEET}' sheet; "
+            "using the existing JSON settings."
+        )
+        return {}
+
+    overrides = {}
+    for row_number, (raw_setting, raw_value) in enumerate(
+        dashboard_df.itertuples(index=False, name=None),
+        start=1,
+    ):
+        if pd.isna(raw_setting) and pd.isna(raw_value):
+            continue
+        if not isinstance(raw_setting, str):
+            raise ValueError(
+                f"Dashboard setting in cell A{row_number} must be text."
+            )
+
+        setting = raw_setting.strip().lower().replace(" ", "_").replace("-", "_")
+        if row_number == 1 and setting in {"parameter", "setting"}:
+            continue
+        is_replication_count = setting == "replications"
+        if is_replication_count:
+            setting = "simulation_counts"
+
+        if setting not in {
+            "seed",
+            "simulation_counts",
+            "monthly_episode_rate",
+            "months_per_year",
+            "duration_mean_days",
+            "duration_threshold_days",
+            "key_suppliers",
+            "scenarios",
+        }:
+            raise ValueError(
+                f"Unsupported dashboard setting '{raw_setting}' "
+                f"in cell A{row_number}."
+            )
+        if setting in overrides:
+            raise ValueError(f"Duplicate dashboard setting: {raw_setting}")
+
+        parsed_value = _parse_dashboard_value(setting, raw_value)
+        if parsed_value is not None:
+            if is_replication_count and len(parsed_value) == 1:
+                simulation_counts = list(config["simulation_counts"])
+                replication_count = parsed_value[0]
+                if replication_count not in simulation_counts:
+                    largest_count_index = max(
+                        range(len(simulation_counts)),
+                        key=simulation_counts.__getitem__,
+                    )
+                    simulation_counts[largest_count_index] = replication_count
+                parsed_value = simulation_counts
+            overrides[setting] = parsed_value
+
+    if not overrides:
+        print(
+            f"No settings found on the '{CONFIG_SHEET}' sheet; "
+            "using the existing JSON settings."
+        )
+    return overrides
+
+
+def load_config() -> dict:
+    with CONFIG_FILE.open(encoding="utf-8") as config_file:
+        config = json.load(config_file)
+
+    config.update(load_dashboard_overrides(config))
+    validate_config(config)
+    temporary_config_file = CONFIG_FILE.with_name(
+        f"{CONFIG_FILE.name}.tmp"
+    )
+    with temporary_config_file.open("w", encoding="utf-8") as config_file:
+        json.dump(config, config_file, indent=2, ensure_ascii=False)
+        config_file.write("\n")
+    temporary_config_file.replace(CONFIG_FILE)
+    print(f"Configuration updated: {CONFIG_FILE}")
+    return config
 
 
 def validate_config(config: dict) -> None:
@@ -375,9 +543,7 @@ def write_analysis_workbook(
 
 
 def run_simulation() -> tuple[pd.DataFrame, pd.DataFrame]:
-    with CONFIG_FILE.open(encoding="utf-8") as config_file:
-        config = json.load(config_file)
-    validate_config(config)
+    config = load_config()
 
     supplier_ids, historical_probabilities = load_supplier_onset_probabilities(
         DATA_FILE

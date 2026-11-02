@@ -156,9 +156,7 @@ def load_dashboard_overrides(config: dict) -> dict:
         if pd.isna(raw_setting) and pd.isna(raw_value):
             continue
         if not isinstance(raw_setting, str):
-            raise ValueError(
-                f"Dashboard setting in cell A{row_number} must be text."
-            )
+            continue
 
         setting = raw_setting.strip().lower().replace(" ", "_").replace("-", "_")
         if row_number == 1 and setting in {"parameter", "setting"}:
@@ -177,10 +175,7 @@ def load_dashboard_overrides(config: dict) -> dict:
             "key_suppliers",
             "scenarios",
         }:
-            raise ValueError(
-                f"Unsupported dashboard setting '{raw_setting}' "
-                f"in cell A{row_number}."
-            )
+            continue
         if setting in overrides:
             raise ValueError(f"Duplicate dashboard setting: {raw_setting}")
 

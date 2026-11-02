@@ -36,7 +36,8 @@ configuration interface. Add settings as a two-column table with `Parameter`
 and `Value` headers. The script applies these values to
 `inputs/simulation_config.json`, validates the resulting configuration, and
 then runs the simulation. If the sheet is blank, the existing JSON settings
-are retained.
+are retained. Unrecognized entries in the sheet (such as other dashboard
+settings) are ignored.
 
 Use the configuration keys below as parameter names. List values can be
 entered as comma-separated values (for example, `1000, 5000`) or JSON arrays.

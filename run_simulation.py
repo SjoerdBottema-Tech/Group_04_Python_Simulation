@@ -11,7 +11,6 @@ DASHBOARD_FILE = PROJECT_DIR / "group04_dashboard.xlsx"
 DATA_FILE = PROJECT_DIR / "inputs" / "group04_p2_data_analysis.xlsx"
 OUTPUT_FILE = PROJECT_DIR / "results" / "simulation_output.csv"
 SUMMARY_FILE = PROJECT_DIR / "results" / "simulation_results.csv"
-ANALYSIS_FILE = PROJECT_DIR / "group04_p3_analysis.xlsx"
 
 CONFIG_SHEET = "Simulation Config"
 SUPPLIER_SHEET = "Sheet1"
@@ -353,190 +352,6 @@ def summarize_results(
     return pd.DataFrame(summary_rows)
 
 
-def build_configuration_table(config: dict) -> pd.DataFrame:
-    descriptions = {
-        "seed": "Random seed used for reproducible random draws.",
-        "simulation_counts": "Annual replication counts for each scenario.",
-        "monthly_episode_rate": "Poisson mean number of disruption episodes per month.",
-        "months_per_year": "Number of months simulated in each replication.",
-        "duration_mean_days": "Geometric duration mean in days; recovery probability is 1 / mean.",
-        "duration_threshold_days": "KPI counts episodes strictly longer than this threshold.",
-        "key_suppliers": "Supplier IDs included in the key-supplier KPI.",
-    }
-    rows = [
-        {
-            "section": "Simulation settings",
-            "setting": name,
-            "value": json.dumps(value, ensure_ascii=False),
-            "description": descriptions[name],
-        }
-        for name, value in config.items()
-        if name not in {"scenarios", "description"}
-    ]
-    rows.extend(
-        [
-            {
-                "section": "KPI definition",
-                "setting": "% disruptions over threshold",
-                "value": "%",
-                "description": "Episodes lasting strictly longer than duration_threshold_days divided by all episodes.",
-            },
-            {
-                "section": "KPI definition",
-                "setting": "Suppliers affected",
-                "value": "Unique suppliers per replication",
-                "description": "Count of distinct suppliers sampled at least once during the replication.",
-            },
-            {
-                "section": "KPI definition",
-                "setting": "Key-supplier disruptions",
-                "value": "%",
-                "description": "Episodes assigned to key_suppliers divided by all episodes.",
-            },
-            {
-                "section": "KPI definition",
-                "setting": "Mean and longest duration",
-                "value": "Days",
-                "description": "Mean duration and longest single duration among episodes in the replication.",
-            },
-        ]
-    )
-    rows.extend(
-        {
-            "section": "Scenario",
-            "setting": scenario["name"],
-            "value": scenario["historical_onset_weight"],
-            "description": scenario["description"],
-        }
-        for scenario in config["scenarios"]
-    )
-    return pd.DataFrame(rows)
-
-
-def write_analysis_workbook(
-    results_df: pd.DataFrame,
-    summary_df: pd.DataFrame,
-    config: dict,
-) -> None:
-    with pd.ExcelWriter(ANALYSIS_FILE, engine="openpyxl") as writer:
-        results_df.to_excel(writer, sheet_name="simulation_output", index=False)
-        summary_df.to_excel(writer, sheet_name="simulation_results", index=False)
-        build_configuration_table(config).to_excel(
-            writer,
-            sheet_name="configuration",
-            index=False,
-        )
-
-    from openpyxl import load_workbook
-    from openpyxl.chart import BarChart, Reference
-    from openpyxl.styles import Font, PatternFill
-    from openpyxl.worksheet.table import Table, TableStyleInfo
-
-    workbook = load_workbook(ANALYSIS_FILE)
-    visualizations = workbook.create_sheet("visualizations", index=2)
-    visualizations["A1"] = "Monte Carlo scenario comparison"
-    visualizations["A1"].font = Font(bold=True, size=16, color="1F4E78")
-    visualizations["A2"] = (
-        "Average KPI values by scenario and replication count. "
-        "See simulation_results for variability and ranges."
-    )
-    for worksheet in workbook.worksheets:
-        if worksheet.title == "visualizations":
-            continue
-        worksheet.freeze_panes = "A2"
-        worksheet.auto_filter.ref = worksheet.dimensions
-        for cell in worksheet[1]:
-            cell.font = Font(bold=True, color="FFFFFF")
-            cell.fill = PatternFill("solid", fgColor="1F4E78")
-        for column in worksheet.columns:
-            column_letter = column[0].column_letter
-            max_length = max(
-                len(str(cell.value)) if cell.value is not None else 0
-                for cell in column[:1000]
-            )
-            worksheet.column_dimensions[column_letter].width = min(
-                max(max_length + 2, 12),
-                55,
-            )
-        if worksheet.max_row > 1:
-            table = Table(
-                displayName=f"{worksheet.title}_table",
-                ref=worksheet.dimensions,
-            )
-            table.tableStyleInfo = TableStyleInfo(
-                name="TableStyleMedium2",
-                showRowStripes=True,
-                showColumnStripes=False,
-            )
-            worksheet.add_table(table)
-
-    for column_index, column_name in enumerate(results_df.columns, start=1):
-        if column_name.startswith("pct_"):
-            for row_index in range(2, len(results_df) + 2):
-                workbook["simulation_output"].cell(
-                    row=row_index,
-                    column=column_index,
-                ).number_format = '0.00"%"'
-
-    summary_sheet = workbook["simulation_results"]
-    for column_index, column_name in enumerate(summary_df.columns, start=1):
-        if column_name.startswith(("mean_pct_", "std_pct_", "min_pct_", "max_pct_")):
-            for row_index in range(2, summary_sheet.max_row + 1):
-                summary_sheet.cell(
-                    row=row_index,
-                    column=column_index,
-                ).number_format = '0.00"%"'
-
-    chart_metrics = [
-        (
-            "mean_pct_disruptions_over_threshold",
-            "Disruptions longer than threshold (%)",
-            "Percentage",
-        ),
-        ("mean_suppliers_affected", "Unique suppliers affected", "Suppliers"),
-        (
-            "mean_pct_key_supplier_disruptions",
-            "Key-supplier disruptions (%)",
-            "Percentage",
-        ),
-        ("mean_duration_days", "Mean disruption duration", "Days"),
-    ]
-    for chart_index, (column_name, title, y_axis_title) in enumerate(chart_metrics):
-        summary_column_index = summary_df.columns.get_loc(column_name) + 1
-        chart = BarChart()
-        chart.type = "col"
-        chart.style = 10
-        chart.title = title
-        chart.y_axis.title = y_axis_title
-        chart.x_axis.title = "Scenario and replication count"
-        chart.height = 8
-        chart.width = 16
-        chart.add_data(
-            Reference(
-                summary_sheet,
-                min_col=summary_column_index,
-                min_row=1,
-                max_row=summary_sheet.max_row,
-            ),
-            titles_from_data=True,
-        )
-        chart.set_categories(
-            Reference(
-                summary_sheet,
-                min_col=1,
-                min_row=2,
-                max_row=summary_sheet.max_row,
-            )
-        )
-        chart.legend = None
-        visualizations.add_chart(
-            chart,
-            ("A3", "J3", "A20", "J20")[chart_index],
-        )
-
-    workbook.save(ANALYSIS_FILE)
-
-
 def run_simulation() -> tuple[pd.DataFrame, pd.DataFrame]:
     config = load_config()
 
@@ -636,12 +451,10 @@ def run_simulation() -> tuple[pd.DataFrame, pd.DataFrame]:
     OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
     results_df.to_csv(OUTPUT_FILE, index=False)
     summary_df.to_csv(SUMMARY_FILE, index=False)
-    write_analysis_workbook(results_df, summary_df, config)
 
     print(f"Simulation complete. Rows written: {len(results_df)}")
     print(f"Trial-level output: {OUTPUT_FILE}")
     print(f"Experiment summary: {SUMMARY_FILE}")
-    print(f"Analysis workbook: {ANALYSIS_FILE}")
     print(f"Expected episodes per year: {expected_episode_count:.2f}")
     print(
         "Theoretical disruptions over "
